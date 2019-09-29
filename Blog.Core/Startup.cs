@@ -13,6 +13,7 @@ using AutoMapper;
 using Blog.Core.AOP;
 using Blog.Core.AuthHelper;
 using Blog.Core.Common;
+using Blog.Core.Common.DB;
 using Blog.Core.Common.HttpContextUser;
 using Blog.Core.Common.LogHelper;
 using Blog.Core.Common.MemoryCache;
@@ -37,7 +38,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json.Serialization;
-using StackExchange.Profiling.Storage;
 using Swashbuckle.AspNetCore.Swagger;
 using static Blog.Core.SwaggerHelper.CustomApiVersion;
 
@@ -83,6 +83,22 @@ namespace Blog.Core
             services.AddSingleton<IRedisCacheManager, RedisCacheManager>();
             // log日志注入
             services.AddSingleton<ILoggerHelper, LogHelper>();
+            #endregion
+
+            #region ISqlSugarClient
+
+            services.AddScoped<SqlSugar.ISqlSugarClient>(o =>
+            {
+                return new SqlSugar.SqlSugarClient(new SqlSugar.ConnectionConfig()
+                {
+                    ConnectionString = BaseDBConfig.ConnectionString,//必填, 数据库连接字符串
+                    DbType = (SqlSugar.DbType)BaseDBConfig.DbType,//必填, 数据库类型
+                    IsAutoCloseConnection = true,//默认false, 时候知道关闭数据库连接, 设置为true无需使用using或者Close操作
+                    IsShardSameThread=true,//共享线程
+                    InitKeyType = SqlSugar.InitKeyType.SystemTable//默认SystemTable, 字段信息读取, 如：该属性是不是主键，标识列等等信息
+                });
+            });
+
             #endregion
 
             #region 初始化DB
@@ -399,8 +415,9 @@ namespace Blog.Core
             //注册要通过反射创建的组件
             //builder.RegisterType<AdvertisementServices>().As<IAdvertisementServices>();
             builder.RegisterType<BlogCacheAOP>();//可以直接替换其他拦截器
-            builder.RegisterType<BlogRedisCacheAOP>();//可以直接替换其他拦截器
-            builder.RegisterType<BlogLogAOP>();//这样可以注入第二个
+            builder.RegisterType<BlogRedisCacheAOP>();
+            builder.RegisterType<BlogLogAOP>();
+            builder.RegisterType<BlogTranAOP>();
 
             // ※※★※※ 如果你是第一次下载项目，请先F6编译，然后再F5执行，※※★※※
 
@@ -425,6 +442,10 @@ namespace Blog.Core
                 if (Appsettings.app(new string[] { "AppSettings", "MemoryCachingAOP", "Enabled" }).ObjToBool())
                 {
                     cacheType.Add(typeof(BlogCacheAOP));
+                }
+                if (Appsettings.app(new string[] { "AppSettings", "TranAOP", "Enabled" }).ObjToBool())
+                {
+                    cacheType.Add(typeof(BlogTranAOP));
                 }
                 if (Appsettings.app(new string[] { "AppSettings", "LogAOP", "Enabled" }).ObjToBool())
                 {

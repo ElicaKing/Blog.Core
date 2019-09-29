@@ -14,4 +14,5 @@ namespace Blog.Core.Common
         public int AbsoluteExpiration { get; set; } = 30;
 
     }
+   
 }
